@@ -1,0 +1,4 @@
+{
+    "rust-analyzer.experimental.nextTraitSolver": false,
+    "rust-analyzer.procMacro.enable": false
+}
