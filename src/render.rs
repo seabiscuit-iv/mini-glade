@@ -53,10 +53,14 @@ impl State {
             object_positions: {
                 let mut arr = [[0.0_f32; 4]; OBJECT_MAX as usize];
                 for i in 0..OBJECT_MAX {
-                    arr[i as usize] = [i as f32 * 3.0, 0.0, 0.0, 0.0];
+                    arr[i as usize] = [i as f32 * 2.0, 0.0, 0.0, 0.0];
                 }
                 arr
-            }
+            },
+            object_rotations: std::array::from_fn(|i| {
+                let angle = i as f32 * 5.0; // 1 radian (or degree) per object
+                [0.0, angle.to_radians(), 0.0, 0.0]      // (pitch, yaw, roll, unused)
+            }),
         };
         let (scene_buffer, scene_bind_group_layout, scene_bind_group) = bind_scene(&scene, &device);
                 

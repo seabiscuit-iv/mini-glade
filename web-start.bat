@@ -1,5 +1,5 @@
 @echo off
 
-wasm-pack build --target web
+wasm-pack build --release --target web
 
 basic-http-server .
