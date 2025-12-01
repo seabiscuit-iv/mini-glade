@@ -54,6 +54,11 @@ fn vs_main(model: VertexInput) -> VertexOutput {
 }
 
 
+fn from_rgb(r: u32, g: u32, b: u32) -> vec3<f32> {
+    return vec3<f32>(f32(r), f32(g), f32(b)) / 255.0f;
+}
+
+
 fn apply_euler_rotation(p: vec3<f32>, euler: vec3<f32>) -> vec3<f32> {
     // euler.x = pitch, euler.y = yaw, euler.z = roll
     let cx = cos(euler.x);
@@ -93,6 +98,15 @@ fn smin(a: SDFResult, b: SDFResult, k: f32) -> SDFResult {
     return SDFResult(dist, color);
 }
 
+fn sdf_min(a: SDFResult, b: SDFResult) -> SDFResult {
+    if a.dist < b.dist {
+        return a;
+    }
+    else {
+        return b;
+    }
+}
+
 fn sdf_sphere(p: vec3<f32>, r: f32, color: vec3<f32>) -> SDFResult {
     return SDFResult(length(p) - r, color);
 }
@@ -104,6 +118,13 @@ fn sdf_box(p: vec3<f32>, b: vec3<f32>, color: vec3<f32>) -> SDFResult {
 
 
 const highlight_color : vec3<f32> = vec3(0.9, 0.9, 0.0);
+
+fn basic_scene_sdf(p: vec3<f32>) -> SDFResult {
+    let ground = SDFResult(p.y, from_rgb(124, 182, 142));;
+    let planter = sdf_box(p - 1.0, vec3(5.0, 1.0, 3.0), from_rgb(38, 28, 15));
+    // let planter = sdf_box(p - 1.0, vec3(5.0, 1.0, 3.0), from_rgb(51, 36, 33));
+    return sdf_min(ground, planter);
+}
 
 fn scene_sdf(p: vec3<f32>) -> SDFResult {
     var min_dist = SDFResult(5000.0, vec3(0.0));
@@ -124,7 +145,7 @@ fn scene_sdf(p: vec3<f32>) -> SDFResult {
         i = i + 1u;
     }
 
-    return min_dist;
+    return sdf_min(min_dist, basic_scene_sdf(p));
 }
 
 fn calc_normal(p: vec3<f32>) -> vec3<f32> {

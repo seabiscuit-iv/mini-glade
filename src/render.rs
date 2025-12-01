@@ -49,7 +49,7 @@ impl State {
         let (camera_buffer, camera_bind_group_layout, camera_bind_group) = CameraUniform::bind_camera(&camera_uniform, &device);
 
         let scene = SceneUniform {
-            num_objects: 15,
+            num_objects: 1,
             selected_object: 0,
             padding_0: [0.0; 2],
             object_positions: {
@@ -204,7 +204,6 @@ impl State {
             
 
             let dir = -(far.xyz() - near.xyz()).normalize();
-
 
             let cast: Option<u32> = raycast_scene(&self.scene, self.camera.eye, -dir, 500.0, 0.01);
             // cast.inspect(|i| println!("CAST: {i}"));
