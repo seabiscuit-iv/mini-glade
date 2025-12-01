@@ -50,7 +50,8 @@ impl State {
 
         let scene = SceneUniform {
             num_objects: 15,
-            padding_0: [0.0; 3],
+            selected_object: 0,
+            padding_0: [0.0; 2],
             object_positions: {
                 let mut arr = [[0.0_f32; 4]; OBJECT_MAX as usize];
                 for i in 0..OBJECT_MAX {
@@ -206,7 +207,11 @@ impl State {
 
 
             let cast: Option<u32> = raycast_scene(&self.scene, self.camera.eye, -dir, 500.0, 0.01);
-            cast.inspect(|i| println!("CAST: {i}"));
+            // cast.inspect(|i| println!("CAST: {i}"));
+
+            self.scene.selected_object = cast.unwrap_or(999);
+        
+            self.queue.write_buffer(&self.scene_buffer, size_of::<u32>() as u64, bytemuck::cast_slice(&[self.scene.selected_object]));
         }
     }
 

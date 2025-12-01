@@ -26,6 +26,7 @@ struct Ray {
 
 struct SceneUniform {
     num_objects: u32,
+    selected_object: u32,
     object_positions: array<vec4<f32>, 512>,
     object_rotations: array<vec4<f32>, 512>,
 };
@@ -102,7 +103,6 @@ fn sdf_box(p: vec3<f32>, b: vec3<f32>, color: vec3<f32>) -> SDFResult {
 }
 
 
-const highlighted_obj : u32 = 0u;
 const highlight_color : vec3<f32> = vec3(0.9, 0.9, 0.0);
 
 fn scene_sdf(p: vec3<f32>) -> SDFResult {
@@ -116,7 +116,7 @@ fn scene_sdf(p: vec3<f32>) -> SDFResult {
         local_p = apply_euler_rotation(local_p, scene.object_rotations[i].xyz);
 
         var sdf = sdf_box(local_p, vec3(1.0), vec3(0.05 * f32(i), 0.0, 1.0 - 0.05 * f32(i)));
-        if i == highlighted_obj {
+        if i == scene.selected_object {
             sdf.color = highlight_color;
         }
         

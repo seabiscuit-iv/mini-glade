@@ -8,11 +8,11 @@ pub const OBJECT_MAX: u32 = 512;
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SceneUniform {
     pub num_objects: u32,
-    pub padding_0: [f32; 3],
+    pub selected_object: u32,
+    pub padding_0: [f32; 2],
     pub object_positions: [[f32; 4]; OBJECT_MAX as usize],
     pub object_rotations: [[f32; 4]; OBJECT_MAX as usize],
 }
-
 
 pub fn bind_scene(scene: &SceneUniform, device: &Device) -> (Buffer, BindGroupLayout, BindGroup) 
 {
