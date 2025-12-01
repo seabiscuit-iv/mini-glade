@@ -77,10 +77,9 @@ pub fn update(&mut self) {
     if self.cam_controller.s { self.eye -= forward * speed; }
     if self.cam_controller.d { self.eye += -right.as_ref() * speed; }
     if self.cam_controller.a { self.eye -= -right.as_ref() * speed; }
-    if self.cam_controller.e { self.eye += -self.up * speed; }
-    if self.cam_controller.q { self.eye -= -self.up * speed; }
+    if self.cam_controller.e { self.eye += self.up * speed; }
+    if self.cam_controller.q { self.eye -= self.up * speed; }
 
-    // --- Rotation ---
     if self.cam_controller.dragging {
         let sensitivity = 0.002_f32;
         let dx = self.cam_controller.mouse_delta.0 as f32;
@@ -102,7 +101,6 @@ pub fn update(&mut self) {
         self.look = (yaw_rot * pitch_rot * self.look).normalize();
     }
 
-    // reset mouse delta
     self.cam_controller.mouse_delta = (0.0, 0.0);
 }
 

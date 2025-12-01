@@ -48,9 +48,15 @@ impl State {
         let (camera_buffer, camera_bind_group_layout, camera_bind_group) = CameraUniform::bind_camera(&camera_uniform, &device);
 
         let scene = SceneUniform {
-            num_objects: 5,
+            num_objects: 15,
             padding_0: [0.0; 3],
-            object_positions: [[0.0, 0.0, 0.0, 0.0]; OBJECT_MAX as usize]
+            object_positions: {
+                let mut arr = [[0.0_f32; 4]; OBJECT_MAX as usize];
+                for i in 0..OBJECT_MAX {
+                    arr[i as usize] = [i as f32 * 3.0, 0.0, 0.0, 0.0];
+                }
+                arr
+            }
         };
         let (scene_buffer, scene_bind_group_layout, scene_bind_group) = bind_scene(&scene, &device);
                 

@@ -1,7 +1,7 @@
 use nalgebra::Vector3;
 use wgpu::{util::*, *};
 
-pub const OBJECT_MAX: u32 = 1;
+pub const OBJECT_MAX: u32 = 512;
 
 
 #[repr(C)]

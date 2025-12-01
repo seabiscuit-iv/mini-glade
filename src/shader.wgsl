@@ -28,7 +28,7 @@ struct Ray {
 
 struct SceneUniform {
     num_objects: u32,
-    object_positions: array<vec4<f32>, 1>
+    object_positions: array<vec4<f32>, 512>
 };
 
 @group(0) @binding(0)
@@ -57,7 +57,7 @@ fn scene_sdf(p: vec3<f32>) -> f32 {
 
     var i = 0u;
     while (i < scene.num_objects) {
-        min_dist = min(min_dist, sdf_sphere(p + vec3<f32>(f32(i) * 2.0, 0.0, 0.0), 1.0));
+        min_dist = min(min_dist, sdf_sphere(p - scene.object_positions[i].xyz, 1.0));
         i = i + 1u;
     }
 
