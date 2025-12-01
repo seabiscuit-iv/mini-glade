@@ -9,7 +9,6 @@ use wgpu::*;
 use crate::render::*;
 
 
-
 pub struct App {
     #[cfg(target_arch = "wasm32")]
     proxy: Option<winit::event_loop::EventLoopProxy<State>>,
@@ -42,8 +41,8 @@ impl ApplicationHandler<State> for App {
                 .with_inner_size(
                     Size::Physical(
                         PhysicalSize { 
-                            width: 800, 
-                            height: 800 
+                            width: 1200, 
+                            height: 1200 
                         }
                     )
                 );
@@ -144,6 +143,14 @@ impl ApplicationHandler<State> for App {
                 position,
                 ..
             } => state.handle_mouse_moved(&event_loop, position),
+
+            WindowEvent::MouseInput { 
+                state: btn_state,
+                button,
+                ..
+            } => {
+                state.handle_mouse_event(button, btn_state.is_pressed());
+            }
 
             _ => ()
         }

@@ -9,12 +9,14 @@ pub struct CameraController {
     pub d: bool,
     pub e: bool,
     pub q: bool,
+    pub dragging: bool,
+    pub mouse_delta : (f64, f64)
 }
 
 
 pub struct Camera {
     pub eye: Vector3<f32>,
-    pub target: Point3<f32>,
+    pub look: Vector3<f32>,
     pub up: Vector3<f32>,
     pub aspect_ratio: f32,
     pub fovy: f32,
@@ -28,7 +30,7 @@ impl Camera {
     pub fn from_dimensions(width: u32, height: u32) -> Self {
         Camera {
             eye: [4.0, 4.0, 4.0].into(),
-            target: [0.0, 0.0, 0.0].into(),
+            look: [0.0, 0.0, 1.0].into(),
             up: Vector3::y(),
             aspect_ratio: width as f32 / height as f32,
             fovy: 45.0,
@@ -40,13 +42,16 @@ impl Camera {
                 d: false,
                 e: false,
                 q: false,
-                s: false
+                s: false,
+                dragging: false,
+                mouse_delta: (0.0, 0.0)
             }
         }
     }
 
     pub fn build_view_proj_matrix(&self) -> Matrix4<f32>{
-        let view = Matrix4::look_at_rh(&self.eye.into(), &self.target, &self.up);
+        let target = self.look + self.eye;
+        let view = Matrix4::look_at_rh(&self.eye.into(), &target.into(), &self.up);
 
         let persp = Perspective3::new(self.aspect_ratio, self.fovy, self.znear, self.zfar);
         let proj = persp.to_homogeneous();
@@ -64,24 +69,44 @@ impl Camera {
     }
 
     pub fn update(&mut self) {
+        let right = Vector3::normalize(&self.look.cross(&self.up));
+
         if self.cam_controller.e {
-            self.eye.x += 0.01;
+            self.eye += self.up * 0.01;
         }
         if self.cam_controller.q {
-            self.eye.x -= 0.01;
+            self.eye -= self.up * 0.01;
         }
         if self.cam_controller.d {
-            self.eye.y += 0.01;
+            self.eye += -right * 0.01;
         }
         if self.cam_controller.a {
-            self.eye.y -= 0.01;
+            self.eye -= -right * 0.01;
         }
         if self.cam_controller.w {
-            self.eye.z += 0.01
+            self.eye += -self.look * 0.01;
         }
         if self.cam_controller.s {
-            self.eye.z -= 0.01
+            self.eye -= -self.look * 0.01;
         }
+    
+        if self.cam_controller.dragging {
+            let sensitivity = 0.002_f32; // tweak this
+            let dx = self.cam_controller.mouse_delta.0 as f32;
+            let dy = self.cam_controller.mouse_delta.1 as f32;
+
+            // yaw (around world Y), pitch (around camera-local X)
+            let yaw = -dx * sensitivity;
+            let pitch = -dy * sensitivity;
+
+            // build a quaternion: first pitch (x), then yaw (y)
+            let q = UnitQuaternion::from_euler_angles(pitch, yaw, 0.0);
+
+            // rotate the look vector
+            self.look = (q * self.look).normalize();
+        }
+
+        self.cam_controller.mouse_delta = (0.0, 0.0);
     }
 
     pub fn get_uniform(&self) -> CameraUniform {
@@ -101,7 +126,7 @@ use wgpu::{util::{BufferInitDescriptor, DeviceExt}, *};
 pub struct CameraUniform {
     view_proj: [[f32; 4]; 4],
     inv_view_proj: [[f32; 4]; 4],
-    cam_pos: [f32; 3]
+    cam_pos: [f32; 4]
 }
 
 impl CameraUniform {
@@ -109,14 +134,18 @@ impl CameraUniform {
         Self {
             view_proj: Matrix4::identity().into(),
             inv_view_proj: Matrix4::identity().into(),
-            cam_pos: [1.0; 3]
+            cam_pos: [1.0; 4]
         }
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera) {
-        self.view_proj = camera.build_view_proj_matrix().into();
-        self.inv_view_proj = camera.build_view_proj_matrix().try_inverse().unwrap().into();
+        let vp = camera.build_view_proj_matrix();
+        self.view_proj = vp.into();
+        self.inv_view_proj = vp.try_inverse().unwrap().into();
+
+        self.cam_pos = [camera.eye.x, camera.eye.y, camera.eye.z, 0.0];
     }
+
 
 
     pub fn bind_camera(cam: &CameraUniform, device: &Device) -> (Buffer, BindGroupLayout, BindGroup) {
@@ -134,7 +163,7 @@ impl CameraUniform {
                 entries: &[
                     BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: ShaderStages::VERTEX,
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
                         count: None,
                         ty: BindingType::Buffer { 
                             ty: BufferBindingType::Uniform, 
