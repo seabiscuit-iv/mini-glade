@@ -26,9 +26,16 @@ struct Ray {
     direction : vec3<f32>,
 }
 
+struct SceneUniform {
+    num_objects: u32,
+    object_positions: array<vec4<f32>, 1>
+};
 
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
+
+@group(1) @binding(0)
+var<uniform> scene: SceneUniform;
 
 @vertex
 fn vs_main(model: VertexInput) -> VertexOutput {
@@ -46,7 +53,15 @@ fn sdf_sphere(p: vec3<f32>, r: f32) -> f32 {
 }
 
 fn scene_sdf(p: vec3<f32>) -> f32 {
-    return sdf_sphere(p, 1.0);
+    var min_dist = 5000.0;
+
+    var i = 0u;
+    while (i < scene.num_objects) {
+        min_dist = min(min_dist, sdf_sphere(p + vec3<f32>(f32(i) * 2.0, 0.0, 0.0), 1.0));
+        i = i + 1u;
+    }
+
+    return min_dist;
 }
 
 fn calc_normal(p: vec3<f32>) -> vec3<f32> {
@@ -103,7 +118,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     if !hit {
-        return vec4<f32>(0.5, 0.8, 0.5, 1.0);
+        return vec4<f32>(0.53, 0.8, 0.92, 1.0);
     }
     else {
         return vec4<f32>(normalize(hit_pos), 1.0);

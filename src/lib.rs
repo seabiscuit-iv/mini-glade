@@ -4,6 +4,7 @@ mod shader_structs;
 mod texture;
 mod camera;
 mod helper;
+mod scene;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;

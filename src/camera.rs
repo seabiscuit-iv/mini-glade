@@ -67,47 +67,45 @@ impl Camera {
 
         opengl_to_wgpu * view_proj
     }
+pub fn update(&mut self) {
+    let right = Unit::new_normalize(self.look.cross(&self.up));
+    let forward = -self.look;
+    let speed = 0.01;
 
-    pub fn update(&mut self) {
-        let right = Vector3::normalize(&self.look.cross(&self.up));
+    // --- Movement ---
+    if self.cam_controller.w { self.eye += forward * speed; }
+    if self.cam_controller.s { self.eye -= forward * speed; }
+    if self.cam_controller.d { self.eye += -right.as_ref() * speed; }
+    if self.cam_controller.a { self.eye -= -right.as_ref() * speed; }
+    if self.cam_controller.e { self.eye += -self.up * speed; }
+    if self.cam_controller.q { self.eye -= -self.up * speed; }
 
-        if self.cam_controller.e {
-            self.eye += self.up * 0.01;
-        }
-        if self.cam_controller.q {
-            self.eye -= self.up * 0.01;
-        }
-        if self.cam_controller.d {
-            self.eye += -right * 0.01;
-        }
-        if self.cam_controller.a {
-            self.eye -= -right * 0.01;
-        }
-        if self.cam_controller.w {
-            self.eye += -self.look * 0.01;
-        }
-        if self.cam_controller.s {
-            self.eye -= -self.look * 0.01;
-        }
-    
-        if self.cam_controller.dragging {
-            let sensitivity = 0.002_f32; // tweak this
-            let dx = self.cam_controller.mouse_delta.0 as f32;
-            let dy = self.cam_controller.mouse_delta.1 as f32;
+    // --- Rotation ---
+    if self.cam_controller.dragging {
+        let sensitivity = 0.002_f32;
+        let dx = self.cam_controller.mouse_delta.0 as f32;
+        let dy = self.cam_controller.mouse_delta.1 as f32;
 
-            // yaw (around world Y), pitch (around camera-local X)
-            let yaw = -dx * sensitivity;
-            let pitch = -dy * sensitivity;
+        // yaw around world Y, pitch around camera-local X
+        let yaw = -dx * sensitivity;
+        let mut pitch = dy * sensitivity;
 
-            // build a quaternion: first pitch (x), then yaw (y)
-            let q = UnitQuaternion::from_euler_angles(pitch, yaw, 0.0);
+        // clamp pitch
+        let current_pitch = self.look.y.asin();
+        let max_pitch = PI / 2.0 * 0.99;
+        let min_pitch = -max_pitch;
+        pitch = (current_pitch + pitch).clamp(min_pitch, max_pitch) - current_pitch;
 
-            // rotate the look vector
-            self.look = (q * self.look).normalize();
-        }
+        let pitch_rot = UnitQuaternion::from_axis_angle(&right, pitch);
+        let yaw_rot = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), yaw);
 
-        self.cam_controller.mouse_delta = (0.0, 0.0);
+        self.look = (yaw_rot * pitch_rot * self.look).normalize();
     }
+
+    // reset mouse delta
+    self.cam_controller.mouse_delta = (0.0, 0.0);
+}
+
 
     pub fn get_uniform(&self) -> CameraUniform {
         let mut camera_uniform = CameraUniform::new();

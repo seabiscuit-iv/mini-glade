@@ -9,6 +9,7 @@ use wgpu::{util::{BufferInitDescriptor, DeviceExt}, wgt::TextureViewDescriptor, 
 use crate::camera::*;
 use crate::shader_structs::*;
 use crate::helper::*;
+use crate::scene::*;
 
 
 pub struct State {
@@ -24,6 +25,10 @@ pub struct State {
     camera: Camera,
     camera_buffer: Buffer,
     camera_bind_group: BindGroup,
+
+    scene: SceneUniform,
+    scene_buffer: Buffer,
+    scene_bind_group: BindGroup,
 
     is_surface_configured: bool,
     num_indices: u32,
@@ -41,6 +46,13 @@ impl State {
         let camera = Camera::from_dimensions(config.width, config.height);
         let camera_uniform = camera.get_uniform();
         let (camera_buffer, camera_bind_group_layout, camera_bind_group) = CameraUniform::bind_camera(&camera_uniform, &device);
+
+        let scene = SceneUniform {
+            num_objects: 5,
+            padding_0: [0.0; 3],
+            object_positions: [[0.0, 0.0, 0.0, 0.0]; OBJECT_MAX as usize]
+        };
+        let (scene_buffer, scene_bind_group_layout, scene_bind_group) = bind_scene(&scene, &device);
                 
         let vertex_buffer = device.create_buffer_init(
             &BufferInitDescriptor {
@@ -61,7 +73,7 @@ impl State {
         let render_pipeline_layout  = device.create_pipeline_layout(
             &PipelineLayoutDescriptor { 
                 label: Some("Render Pipeline Layout"), 
-                bind_group_layouts: &[&camera_bind_group_layout], 
+                bind_group_layouts: &[&camera_bind_group_layout, &scene_bind_group_layout], 
                 push_constant_ranges: &[] 
             }
         );
@@ -85,7 +97,10 @@ impl State {
             index_buffer,
             camera,
             camera_bind_group,
-            camera_buffer
+            camera_buffer,
+            scene,
+            scene_buffer,
+            scene_bind_group
         })
     }
 
@@ -185,6 +200,7 @@ impl State {
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.scene_bind_group, &[]);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         });
 
