@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use nalgebra::{Matrix4, Vector2, Vector3, Vector4};
 use winit::{dpi::PhysicalPosition, event::MouseButton, event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
 #[cfg(target_arch = "wasm32")]
 use winit::event_loop::{self};
@@ -183,7 +184,30 @@ impl State {
 
     pub fn update(&mut self) {
         self.camera.update();
-        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera.get_uniform()]));
+        let uniform = self.camera.get_uniform();
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[uniform]));
+        if self.camera.cam_controller.clicked {
+            let pixel = Vector2::new(self.mouse_pos.0 as f32, self.mouse_pos.1 as f32);
+            let uv = pixel.component_div(&Vector2::new(self.config.width as f32, self.config.height as f32));
+
+            let clip_near = Vector4::new(uv.x * 2.0 - 1.0, (uv.y) * 2.0 - 1.0, 0.0, 1.0);
+            let clip_far = Vector4::new(uv.x * 2.0 - 1.0, (uv.y) * 2.0 - 1.0, 1.0, 1.0);
+
+            let inv_view_proj = Matrix4::from(uniform.inv_view_proj);
+
+            let mut near = inv_view_proj * clip_near;
+            near = near / near.w;      
+
+            let mut far = inv_view_proj * clip_far;
+            far = far / far.w;      
+            
+
+            let dir = -(far.xyz() - near.xyz()).normalize();
+
+
+            let cast: Option<u32> = raycast_scene(&self.scene, self.camera.eye, -dir, 500.0, 0.01);
+            cast.inspect(|i| println!("CAST: {i}"));
+        }
     }
 
 
@@ -195,7 +219,7 @@ impl State {
 
         if !self.is_surface_configured {
             return Ok(());
-        }
+        }   
 
         let output = self.surface.get_current_texture()?;
 

@@ -10,6 +10,8 @@ pub struct CameraController {
     pub e: bool,
     pub q: bool,
     pub dragging: bool,
+    pub dragging_frame_count: u32,
+    pub clicked: bool,
     pub mouse_delta: (f64, f64),
 }
 
@@ -42,7 +44,9 @@ impl Camera {
                 q: false,
                 s: false,
                 dragging: false,
+                dragging_frame_count: 0,
                 mouse_delta: (0.0, 0.0),
+                clicked: false,
             },
         }
     }
@@ -67,6 +71,10 @@ impl Camera {
         let right = Unit::new_normalize(self.look.cross(&self.up));
         let forward = -self.look;
         let local_up = right.cross(&forward).normalize();
+
+        if self.cam_controller.clicked {
+            self.cam_controller.clicked = false;
+        }
 
         let speed = 0.05;
 
@@ -109,6 +117,15 @@ impl Camera {
             let yaw_rot = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), yaw);
 
             self.look = (yaw_rot * pitch_rot * self.look).normalize();
+
+            self.cam_controller.dragging_frame_count += 1;
+        }
+        else {
+            if self.cam_controller.dragging_frame_count > 0 && self.cam_controller.dragging_frame_count < 10 {
+                self.cam_controller.clicked = true;
+            }
+
+            self.cam_controller.dragging_frame_count = 0;
         }
 
         self.cam_controller.mouse_delta = (0.0, 0.0);
@@ -130,7 +147,7 @@ use wgpu::{
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
     view_proj: [[f32; 4]; 4],
-    inv_view_proj: [[f32; 4]; 4],
+    pub inv_view_proj: [[f32; 4]; 4],
     cam_pos: [f32; 4],
 }
 
@@ -187,12 +204,4 @@ impl CameraUniform {
 
         (camera_buffer, camera_bind_group_layout, camera_bind_group)
     }
-}
-
-fn spherical_to_cartesian(radius: f32, theta: f32, phi: f32) -> Point3<f32> {
-    Point3::new(
-        radius * phi.sin() * theta.cos(),
-        radius * phi.cos(),
-        radius * phi.sin() * theta.sin(),
-    )
 }

@@ -102,6 +102,9 @@ fn sdf_box(p: vec3<f32>, b: vec3<f32>, color: vec3<f32>) -> SDFResult {
 }
 
 
+const highlighted_obj : u32 = 0u;
+const highlight_color : vec3<f32> = vec3(0.9, 0.9, 0.0);
+
 fn scene_sdf(p: vec3<f32>) -> SDFResult {
     var min_dist = SDFResult(5000.0, vec3(0.0));
     var i = 0u;
@@ -112,8 +115,12 @@ fn scene_sdf(p: vec3<f32>) -> SDFResult {
         let r = scene.object_rotations[i];
         local_p = apply_euler_rotation(local_p, scene.object_rotations[i].xyz);
 
-        // min_dist = min(min_dist, sdf_sphere(local_p, 1.0));
-        min_dist = smin(min_dist, sdf_box(local_p, vec3(1.0), vec3(0.05 * f32(i), 0.0, 1.0 - 0.05 * f32(i))), 0.3);
+        var sdf = sdf_box(local_p, vec3(1.0), vec3(0.05 * f32(i), 0.0, 1.0 - 0.05 * f32(i)));
+        if i == highlighted_obj {
+            sdf.color = highlight_color;
+        }
+        
+        min_dist = smin(min_dist, sdf, 0.3);
         i = i + 1u;
     }
 
