@@ -121,9 +121,9 @@ const highlight_color : vec3<f32> = vec3(0.9, 0.9, 0.0);
 
 fn basic_scene_sdf(p: vec3<f32>) -> SDFResult {
     let ground = SDFResult(p.y, from_rgb(124, 182, 142));;
-    let planter = sdf_box(p - 1.0, vec3(5.0, 1.0, 3.0), from_rgb(38, 28, 15));
-    // let planter = sdf_box(p - 1.0, vec3(5.0, 1.0, 3.0), from_rgb(51, 36, 33));
-    return sdf_min(ground, planter);
+    let planter = sdf_box(p - vec3(0.0, 1.0, 0.0), vec3(5.0, 1.0, 3.0), from_rgb(51, 36, 33));
+    let soil = sdf_box(p - vec3(0.0, 1.1, 0.0), vec3(4.5, 1.0, 2.6), from_rgb(38, 28, 15));
+    return sdf_min(sdf_min(ground, planter), soil);
 }
 
 fn scene_sdf(p: vec3<f32>) -> SDFResult {
@@ -160,6 +160,34 @@ fn calc_normal(p: vec3<f32>) -> vec3<f32> {
 fn get_ray_pos (ray : Ray, t : f32) -> vec3<f32> {
     return ray.origin + t * ray.direction;
 }
+
+
+
+
+
+
+
+
+fn ambient_occlusion(p: vec3<f32>, n: vec3<f32>) -> f32 {
+    var occlusion = 0.0;
+    let scale = 0.4;
+    for (var i = 1; i <= 5; i += 1) {
+        let t = 0.045 * f32(i); // step along normal
+        let d = scene_sdf(p + n * t); // SDF distance
+        occlusion += (t - d.dist);      // closer surfaces contribute more
+    }
+    return clamp(1.0 - occlusion, 0.0, 1.0);
+}
+
+
+
+
+
+
+
+
+
+
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -207,6 +235,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         return vec4<f32>(0.53, 0.8, 0.92, 1.0);
     }
     else {
-        return vec4<f32>(hit_col, 1.0);
+        let normal = calc_normal(hit_pos);
+
+        let light_pos = normalize(vec3(1.0, 3.0, 1.0));
+
+        let lambert = max(dot(light_pos, normal), 0.0);
+
+        let ao = 1.0 - ambient_occlusion(hit_pos, normal);
+
+        let light_contrib = lambert - ao;
+
+        return vec4<f32>(hit_col * (light_contrib * 0.7 + 0.3), 1.0);
     }
 }
