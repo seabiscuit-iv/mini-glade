@@ -117,18 +117,118 @@ fn sdf_box(p: vec3<f32>, b: vec3<f32>, color: vec3<f32>) -> SDFResult {
 }
 
 
+
+
+
+fn hash22(p : vec2<f32>) -> vec2<f32> {
+    let x = sin(p.x * 127.1 + p.y * 311.7) * 43758.5453;
+    let y = sin(p.x * 269.5 + p.y * 183.3) * 43758.5453;
+    return fract(vec2(x, y));
+}
+
+fn hash(n: vec2<f32>) -> f32 {
+    return fract(sin(dot(n, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+fn voronoi(uv: vec2<f32>) -> vec2<f32>
+{
+    let f = fract(uv);
+    let u = floor(uv);
+    
+    var closest = 100.0;
+    var id = 0.0;
+    for (var y = -1; y <= 1; y += 1)
+    {
+        for (var x = -1; x <= 1; x += 1)
+        {
+            var d = vec2(f32(x), f32(y));
+            var nu = u + d;
+            var p = hash22(nu);
+            let dist = distance(f, p + d);
+            if (dist < closest)
+            {
+                closest = dist;
+                id = hash(nu);
+            }
+        }
+    }
+    return vec2(closest, id);
+}
+
+fn voronoi_3d(p: vec3<f32>) -> f32
+{
+    let grassHeight = 1.0;
+    
+    // 1. Scale p.xz for the 2D Voronoi grid
+    let uv = p.xz * 3.0;
+
+    // Get (Closest_Distance_D, ID)
+    let vor = voronoi(uv); // Using the hypothetically modified function
+    let closest_distance_D = vor.x;
+    let id = vor.y;
+
+    // 2. Determine the grass blade's "thickness" or threshold at this height (p.y)
+    // The surface is defined where the cell boundary shrinks to the cell center.
+    // The original boundary value scales from 0 (at p.y=0) to 1 (at p.y=grassHeight).
+    let boundary_threshold = 1.0 - max(p.y / grassHeight, 0.0);
+    
+    // 3. Calculate the Signed Distance
+    // The SDF is the difference between the closest distance (D) and the threshold.
+    // D < threshold (Inside the blade) -> Negative SDF
+    // D = threshold (On the surface) -> Zero SDF
+    // D > threshold (Outside the blade) -> Positive SDF
+    let sdf = closest_distance_D - boundary_threshold;
+
+    // 4. Distance Scaling (Crucial for a "true" SDF)
+    // The D value is in the range [0, sqrt(2)/2] (distance across a unit cell).
+    // The sdf value needs to be scaled to approximate the Euclidean distance.
+    // Since the max size of the SDF is related to 1 / scale_factor, we scale up.
+    let scale_factor = 3.0; // Same as the p.xz * 3.0 scaling
+    return sdf / scale_factor;
+}
+
+
+fn voronoiGrassSDF(p: vec3<f32>) -> SDFResult {
+    let grassHeight = 1.0;
+    
+    // --- 1. SDF Calculation (from your original logic) ---
+    let uv = p.xz * 3.0;
+    let vor = voronoi(uv);
+    let closest_distance_D = vor.x;
+    let cell_id = vor.y; // <--- This is the stable per-blade ID
+
+    let boundary_threshold = 1.0 - max(p.y / grassHeight, 0.0);
+    let sdf = closest_distance_D - boundary_threshold;
+    let scale_factor = 3.0;
+    let dist = sdf / scale_factor;
+
+    // --- 2. Color Calculation ---
+
+    // Define color ranges
+    let id_factor = clamp(cell_id * 2.0 - 1.0, 0.0, 1.0);
+
+    let dark_green = from_rgb(30, 100 + u32(30 * id_factor) , 30);  // Darker, near the root
+    let bright_green = from_rgb(134, 212 + u32(12 * (1.0 - id_factor)), 148); // Lighter, near the tip
+
+    let height_factor = clamp(p.y / grassHeight, 0.0, 1.0);
+    var color = mix(dark_green, bright_green, height_factor);
+    
+    return SDFResult(dist, color); // Return the calculated color
+}
+
+
 const highlight_color : vec3<f32> = vec3(0.9, 0.9, 0.0);
 
 fn basic_scene_sdf(p: vec3<f32>) -> SDFResult {
     let ground = SDFResult(p.y, from_rgb(124, 182, 142));;
     let planter = sdf_box(p - vec3(0.0, 1.0, 0.0), vec3(5.0, 1.0, 3.0), from_rgb(51, 36, 33));
     let soil = sdf_box(p - vec3(0.0, 1.1, 0.0), vec3(4.5, 1.0, 2.6), from_rgb(38, 28, 15));
-    return sdf_min(sdf_min(ground, planter), soil);
+    return sdf_min(sdf_min(sdf_min(ground, planter), soil), voronoiGrassSDF(p));
 }
 
 fn scene_sdf(p: vec3<f32>) -> SDFResult {
     var min_dist = SDFResult(5000.0, vec3(0.0));
-    var i = 0u;
+    var i = 0u; 
 
     while (i < scene.num_objects) {
         var local_p = p - scene.object_positions[i].xyz;
@@ -185,7 +285,57 @@ fn ambient_occlusion(p: vec3<f32>, n: vec3<f32>) -> f32 {
 
 
 
+fn rgb2hsv(c: vec3<f32>) -> vec3<f32> {
+    let rgb_min = min(min(c.r, c.g), c.b);
+    let rgb_max = max(max(c.r, c.g), c.b);
+    let delta = rgb_max - rgb_min;
 
+    var h = 0.0;
+    if (delta != 0.0) {
+        if (c.r == rgb_max) {
+            h = (c.g - c.b) / delta;
+        } else if (c.g == rgb_max) {
+            h = 2.0 + (c.b - c.r) / delta;
+        } else {
+            h = 4.0 + (c.r - c.g) / delta;
+        }
+        h = h * 60.0;
+    }
+    if (h < 0.0) {
+        h = h + 360.0;
+    }
+    
+    let s = select(0.0, delta / rgb_max, rgb_max != 0.0);
+    let v = rgb_max;
+    
+    return vec3(h / 360.0, s, v);
+}
+
+fn hsv2rgb(c: vec3<f32>) -> vec3<f32> {
+    let k = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    let p = abs(fract(c.xxx + k.xyz) * 6.0 - k.www);
+    let rgb = c.z * mix(k.xxx, clamp(p - k.x, vec3(0.0), vec3(1.0)), c.y);
+    return rgb;
+}
+
+// -- Simplified Reinhard Tonemapping Function --
+// Compresses high values while maintaining midtone contrast.
+fn reinhard(color: vec3<f32>) -> vec3<f32> {
+    // Applied component-wise
+    return color / (vec3(1.0) + color);
+}
+
+// -- Saturation Boosting Function --
+// Increases the S channel in HSV space.
+fn boost_saturation(color: vec3<f32>, factor: f32) -> vec3<f32> {
+    let hsv = rgb2hsv(color);
+    var boosted_hsv = hsv;
+    
+    // Multiply the saturation (y component)
+    boosted_hsv.y = clamp(hsv.y * factor, 0.0, 1.0);
+    
+    return hsv2rgb(boosted_hsv);
+}
 
 
 
@@ -241,10 +391,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         let lambert = max(dot(light_pos, normal), 0.0);
 
-        let ao = 1.0 - ambient_occlusion(hit_pos, normal);
+        let ao = clamp(1.0 - ambient_occlusion(hit_pos, normal), 0.0, 0.3);
 
         let light_contrib = lambert - ao;
+        // let light_contrib = lambert;
 
-        return vec4<f32>(hit_col * (light_contrib * 0.7 + 0.3), 1.0);
+        let col = vec3<f32>(hit_col * (light_contrib * 0.7 + 0.3));
+
+        let tonemapped_rgb = reinhard(col);
+        let saturation_factor = 1.6;
+        let final_rgb = boost_saturation(tonemapped_rgb, saturation_factor);
+        let final_col = vec4<f32>(final_rgb, 1.0);
+
+        return final_col;
     }
 }

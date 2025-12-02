@@ -109,7 +109,7 @@ pub async fn configure_surface(window: Arc<Window>) -> anyhow::Result<(Surface<'
     // adapter is a handle for our graphics card
     let adapter = instance.request_adapter( 
         &RequestAdapterOptions { 
-            power_preference: PowerPreference::default(), 
+            power_preference: PowerPreference::HighPerformance, 
             force_fallback_adapter: false, 
             compatible_surface: Some(&surface)
         }
