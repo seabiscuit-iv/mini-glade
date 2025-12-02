@@ -1,11 +1,12 @@
-use std::sync::Arc;
+use std::{sync::Arc};
 
+use instant::Instant;
 use nalgebra::{Matrix4, Vector2, Vector3, Vector4};
-use winit::{dpi::PhysicalPosition, event::MouseButton, event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
+use iced_winit::winit::{dpi::PhysicalPosition, event::MouseButton, event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
 #[cfg(target_arch = "wasm32")]
 use winit::event_loop::{self};
 
-use wgpu::{util::{BufferInitDescriptor, DeviceExt}, wgt::TextureViewDescriptor, *};
+use iced_wgpu::wgpu::{util::{BufferInitDescriptor, DeviceExt}, *};
 
 use crate::camera::*;
 use crate::shader_structs::*;
@@ -37,7 +38,9 @@ pub struct State {
     pub window: Arc<Window>,
 
     mouse_pos: (f64, f64),
-    mouse_delta: (f64, f64)
+    mouse_delta: (f64, f64),
+
+    start: Instant
 }
 
 impl State {
@@ -50,19 +53,16 @@ impl State {
 
         let scene = SceneUniform {
             num_objects: 1,
-            selected_object: 0,
-            padding_0: [0.0; 2],
-            object_positions: {
-                let mut arr = [[0.0_f32; 4]; OBJECT_MAX as usize];
-                for i in 0..OBJECT_MAX {
-                    arr[i as usize] = [i as f32 * 2.0, 0.0, 0.0, 0.0];
-                }
-                arr
-            },
-            object_rotations: std::array::from_fn(|i| {
-                let angle = i as f32 * 5.0; // 1 radian (or degree) per object
-                [0.0, angle.to_radians(), 0.0, 0.0]      // (pitch, yaw, roll, unused)
-            }),
+            selected_object: 999,
+            time: 0.0,
+            padding_0: [0.0; 1],
+            object_positions: [[3.0, 3.0, 0.0, 1.0]; OBJECT_MAX as usize],
+            object_rotations: [[0.0; 4]; OBJECT_MAX as usize],
+            object_meta: [[0; 4]; OBJECT_MAX as usize],
+            object_param_1: [[0.0; 4]; OBJECT_MAX as usize],
+            object_param_2: [[0.0; 4]; OBJECT_MAX as usize],
+            object_param_3: [[0.0; 4]; OBJECT_MAX as usize],
+            object_param_4: [[0.0; 4]; OBJECT_MAX as usize],
         };
         let (scene_buffer, scene_bind_group_layout, scene_bind_group) = bind_scene(&scene, &device);
                 
@@ -112,7 +112,8 @@ impl State {
             camera_buffer,
             scene,
             scene_buffer,
-            scene_bind_group
+            scene_bind_group,
+            start: Instant::now()
         })
     }
 
@@ -212,6 +213,9 @@ impl State {
         
             self.queue.write_buffer(&self.scene_buffer, size_of::<u32>() as u64, bytemuck::cast_slice(&[self.scene.selected_object]));
         }
+
+        self.scene.time = self.start.elapsed().as_secs_f32();
+        self.queue.write_buffer(&self.scene_buffer, 2 * size_of::<u32>() as u64, bytemuck::cast_slice(&[self.scene.time]));
     }
 
 
@@ -233,14 +237,40 @@ impl State {
             label: Some("Render Encoder")
         });
 
-        with_default_render_pass(&mut encoder, &view, |render_pass| {
+        {
+            let mut render_pass = encoder.begin_render_pass(
+                &RenderPassDescriptor { 
+                    label: Some("Render Pass"), 
+                    color_attachments: &[Some(
+                        RenderPassColorAttachment { 
+                            view: &view, 
+                            resolve_target: None, 
+                            ops: Operations { 
+                                load: LoadOp::Clear(
+                                    Color { 
+                                        r: 0.0, 
+                                        g: 0.0, 
+                                        b: 0.0, 
+                                        a: 1.0 
+                                    }
+                                ), 
+                                store: StoreOp::Store
+                            },
+                        }
+                    )], 
+                    depth_stencil_attachment: None, 
+                    timestamp_writes: None, 
+                    occlusion_query_set: None 
+                }
+            );
+
             render_pass.set_pipeline(&self.brown_render_pipeline);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.scene_bind_group, &[]);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-        });
+        }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();

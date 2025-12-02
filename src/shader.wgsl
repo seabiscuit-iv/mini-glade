@@ -27,8 +27,14 @@ struct Ray {
 struct SceneUniform {
     num_objects: u32,
     selected_object: u32,
-    object_positions: array<vec4<f32>, 512>,
-    object_rotations: array<vec4<f32>, 512>,
+    time: f32,
+    object_positions: array<vec4<f32>, 64>,
+    object_rotations: array<vec4<f32>, 64>,
+    object_meta: array<vec4<u32>, 64>,
+    object_param_1: array<vec4<f32>, 64>,
+    object_param_2: array<vec4<f32>, 64>,
+    object_param_3: array<vec4<f32>, 64>,
+    object_param_4: array<vec4<f32>, 64>,
 };
 
 struct SDFResult {
@@ -54,7 +60,7 @@ fn vs_main(model: VertexInput) -> VertexOutput {
 }
 
 
-fn from_rgb(r: u32, g: u32, b: u32) -> vec3<f32> {
+fn from_rgb(r: i32, g: i32, b: i32) -> vec3<f32> {
     return vec3<f32>(f32(r), f32(g), f32(b)) / 255.0f;
 }
 
@@ -207,8 +213,8 @@ fn voronoiGrassSDF(p: vec3<f32>) -> SDFResult {
     // Define color ranges
     let id_factor = clamp(cell_id * 2.0 - 1.0, 0.0, 1.0);
 
-    let dark_green = from_rgb(30, 100 + u32(30 * id_factor) , 30);  // Darker, near the root
-    let bright_green = from_rgb(134, 212 + u32(12 * (1.0 - id_factor)), 148); // Lighter, near the tip
+    let dark_green = from_rgb(30, 100 + i32(30 * id_factor) , 30);  // Darker, near the root
+    let bright_green = from_rgb(134, 212 + i32(12 * (1.0 - id_factor)), 148); // Lighter, near the tip
 
     let height_factor = clamp(p.y / grassHeight, 0.0, 1.0);
     var color = mix(dark_green, bright_green, height_factor);
@@ -226,6 +232,22 @@ fn basic_scene_sdf(p: vec3<f32>) -> SDFResult {
     return sdf_min(sdf_min(sdf_min(ground, planter), soil), voronoiGrassSDF(p));
 }
 
+
+fn pick_sdf(p: vec3<f32>, metadata: vec4<u32>, param1: vec4<f32>, param2: vec4<f32>, param3: vec4<f32>, param4: vec4<f32>) -> SDFResult {
+    let obj_type = metadata.x;
+
+    if obj_type == 0 {
+        return sdf_box(p, param1.xyz, param2.xyz); // size, color
+    }
+    else if obj_type == 1 {
+        return sdf_sphere(p, param1.x, param2.xyz);
+    }
+    else {
+        return sdf_sphere(p, 1.0, from_rgb(0, 0, 0));
+    }
+}
+
+
 fn scene_sdf(p: vec3<f32>) -> SDFResult {
     var min_dist = SDFResult(5000.0, vec3(0.0));
     var i = 0u; 
@@ -236,7 +258,12 @@ fn scene_sdf(p: vec3<f32>) -> SDFResult {
         let r = scene.object_rotations[i];
         local_p = apply_euler_rotation(local_p, scene.object_rotations[i].xyz);
 
+
+
         var sdf = sdf_box(local_p, vec3(1.0), vec3(0.05 * f32(i), 0.0, 1.0 - 0.05 * f32(i)));
+
+
+
         if i == scene.selected_object {
             sdf.color = highlight_color;
         }
@@ -338,11 +365,88 @@ fn boost_saturation(color: vec3<f32>, factor: f32) -> vec3<f32> {
 }
 
 
+fn ACESFilm( x: vec3<f32> ) -> vec3<f32>
+{
+    let tA = 2.51;
+    let tB = 0.03;
+    let tC = 2.43;
+    let tD = 0.59;
+    let tE = 0.14;
+    return clamp((x*(tA*x+tB))/(x*(tC*x+tD)+tE),vec3(0.0),vec3(1.0));
+}
+
+const RayleighAtt : f32 = 1.0;  
+const MieAtt : f32 = 1.2;
+
+fn sky(_o: vec3<f32>, _d: vec3<f32>, sun_dir: vec3<f32> ) -> vec3<f32> {
+    var origin = _o;
+    var dir = _d;
+    var color = vec3(0.0);
+
+    let day_night = clamp(sun_dir.y * 6.0, 0.1, 1.0);
+    
+	if dir.y < 0 {
+		let L = - origin.y / dir.y;
+		origin = origin + dir * L;
+        dir.y = -dir.y;
+		dir = normalize(dir);
+	}
+    else{
+     	let L1 =  origin.y / origin.y;
+		let O1 = origin + dir * L1;
+
+    	var D1 = vec3(1.0);
+    	D1 = normalize(dir);
+    }
+    
+    let t = max(0.001, dir.y) + max(-dir.y, -0.001);
+
+    // optical depth -> zenithAngle
+    let sR = RayleighAtt / t ;
+    let sM = MieAtt / t ;
+
+    let cosine = clamp(dot(dir, sun_dir),0.0,1.0);
+    let extinction = exp(-(vec3(1.95e-2, 1.1e-1, 2.94e-1) * sR + vec3(4e-2, 4e-2, 4e-2) * sM));
+
+    // scattering phase
+    let g2 = -0.9 * -0.9;
+    let fcos2 = cosine * cosine;
+    let miePhase = 1.0 * pow(1. + g2 + 2. * -0.9 * cosine, -1.5) * (1. - g2) / (2. + g2);
+
+    let rayleighPhase = 1.0;
+
+    let inScatter = (1. + fcos2) * vec3(rayleighPhase + vec3(4e-2, 4e-2, 4e-2) / vec3(1.95e-2, 1.1e-1, 2.94e-1) * miePhase);
+
+    color = inScatter*(1.0-extinction); // *vec3(1.6,1.4,1.0)
+
+    // sun
+    color += 0.47*vec3(1.6,1.4,1.0)*pow( cosine, 350.0 ) * extinction;
+    // sun haze
+    color += 0.4*vec3(0.8,0.9,1.0)*pow( cosine, 2.0 )* extinction;
+
+    color *= day_night;
+    
+    color = ACESFilm(color);
+
+    color = pow(color, vec3(2.2));
+
+    return color;
+}
+
+
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let uv = in.tex_coords * 2.0 - vec2<f32>(1.0, 1.0);
     var clip = vec4<f32>(uv.x, -uv.y, 0.0, 1.0);
+
+    let time = scene.time * 0.02; // slow it down
+
+    let light_pos = normalize(vec3(
+        sin(time),
+        cos(time),
+        0.0
+    ));
 
     var near = camera.inv_view_proj * clip;
     near /= near.w;
@@ -382,24 +486,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     if !hit {
-        return vec4<f32>(0.53, 0.8, 0.92, 1.0);
+        return vec4<f32>(sky(ray.origin, ray.direction, light_pos), 1.0);
     }
     else {
         let normal = calc_normal(hit_pos);
-
-        let light_pos = normalize(vec3(1.0, 3.0, 1.0));
 
         let lambert = max(dot(light_pos, normal), 0.0);
 
         let ao = clamp(1.0 - ambient_occlusion(hit_pos, normal), 0.0, 0.3);
 
-        let light_contrib = lambert - ao;
+        let light_contrib = (lambert - ao) * clamp(sky(ray.origin, ray.direction, light_pos), vec3(0.0), vec3(1.0));
         // let light_contrib = lambert;
 
         let col = vec3<f32>(hit_col * (light_contrib * 0.7 + 0.3));
 
         let tonemapped_rgb = reinhard(col);
-        let saturation_factor = 1.6;
+        let saturation_factor = 1.2;
         let final_rgb = boost_saturation(tonemapped_rgb, saturation_factor);
         let final_col = vec4<f32>(final_rgb, 1.0);
 

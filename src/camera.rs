@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use nalgebra::*;
 
-pub struct CameraController {
+pub struct CameraController  {
     pub w: bool,
     pub a: bool,
     pub s: bool,
@@ -138,7 +138,7 @@ impl Camera {
     }
 }
 
-use wgpu::{
+use iced_wgpu::wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     *,
 };

@@ -10,16 +10,18 @@ strip = true
 anyhow = "1.0.100"
 bytemuck = "1.24.0"
 env_logger = "0.11.8"
+instant = "0.1.13"
 log = "0.4.28"
 nalgebra = "0.34.1"
 pollster = "0.4.0"
-wgpu = "26.0.1"
-winit = { version = "0.30.12", features = ["android-native-activity"] }
+iced_winit = "0.13.0"
+iced_wgpu = { version = "0.13.5", default-features = true }
+iced_widget = { version = "0.13.4", features = ["wgpu"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+iced_wgpu = { version = "0.12", features = ["webgl"] }
 console_error_panic_hook = "0.1.6"
 console_log = "1.0"
-wgpu = { version = "26.0.1", features = ["webgl"]}
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4.30"
 web-sys = { version = "0.3", features = [

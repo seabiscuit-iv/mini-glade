@@ -1,46 +1,9 @@
 use std::sync::Arc;
-use winit::window::Window;
-use wgpu::*;
+use iced_winit::winit::window::Window;
+use iced_wgpu::wgpu;
+use iced_wgpu::wgpu::*;
+use crate::render;
 use crate::shader_structs::Vertex;
-
-
-pub fn with_default_render_pass<F>(
-    encoder: &mut wgpu::CommandEncoder,
-    view: &wgpu::TextureView,
-    draw_fn: F,
-) 
-where
-    F: FnOnce(&mut wgpu::RenderPass),
-{
-    let mut render_pass = encoder.begin_render_pass(
-        &RenderPassDescriptor { 
-            label: Some("Render Pass"), 
-            color_attachments: &[Some(
-                RenderPassColorAttachment { 
-                    view: &view, 
-                    resolve_target: None, 
-                    ops: Operations { 
-                        load: LoadOp::Clear(
-                            Color { 
-                                r: 0.0, 
-                                g: 0.0, 
-                                b: 0.0, 
-                                a: 1.0 
-                            }
-                        ), 
-                        store: StoreOp::Store
-                    },
-                    depth_slice: None, 
-                }
-            )], 
-            depth_stencil_attachment: None, 
-            timestamp_writes: None, 
-            occlusion_query_set: None 
-        }
-    );
-
-    draw_fn(&mut render_pass);
-}
 
 //helper fn for render pipeline descriptors
 pub fn make_pipeline_desc_from_shader(device: &Device, layout: &PipelineLayout, shader: &ShaderModule, fmt: TextureFormat) -> RenderPipeline {
@@ -52,14 +15,12 @@ pub fn make_pipeline_desc_from_shader(device: &Device, layout: &PipelineLayout, 
             layout: Some(layout), 
             vertex: VertexState { 
                 module: shader, 
-                entry_point: Some("vs_main"), 
-                compilation_options: PipelineCompilationOptions::default(), 
+                entry_point: "vs_main", 
                 buffers: &[vertex_buffer_layout] 
             }, 
             fragment: Some(FragmentState {
                 module: shader,
-                entry_point: Some("fs_main"),
-                compilation_options: PipelineCompilationOptions::default(), 
+                entry_point: "fs_main",
                 targets: &[Some(ColorTargetState { 
                     format: fmt, 
                     blend: Some(BlendState::REPLACE), 
@@ -77,7 +38,6 @@ pub fn make_pipeline_desc_from_shader(device: &Device, layout: &PipelineLayout, 
             }, 
             depth_stencil: None,
             multiview: None, 
-            cache: None,
             multisample: MultisampleState { 
                 count: 1, 
                 mask: !0, 
@@ -100,7 +60,7 @@ pub async fn configure_surface(window: Arc<Window>) -> anyhow::Result<(Surface<'
         };
 
     let instance = Instance::new(
-        &instance_descriptor
+        instance_descriptor
     );
 
     let window_ref = window.clone();
@@ -114,7 +74,7 @@ pub async fn configure_surface(window: Arc<Window>) -> anyhow::Result<(Surface<'
             compatible_surface: Some(&surface)
         }
     )
-    .await?;
+    .await.unwrap();
 
     println!("GPU: {}", adapter.get_info().name);
 
@@ -128,10 +88,8 @@ pub async fn configure_surface(window: Arc<Window>) -> anyhow::Result<(Surface<'
                 } else {
                     Limits::default()
                 }
-            , 
-            memory_hints: Default::default(), 
-            trace: Trace::Off 
-        }
+        },
+        None
     )
     .await?;
 

@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
+use iced_winit::winit;
+
 #[cfg(target_arch = "wasm32")]
 use winit::event_loop::{self};
-use winit::{application::ApplicationHandler, dpi::{PhysicalSize, Size}, event::{KeyEvent, WindowEvent}, event_loop::{ActiveEventLoop, EventLoop}, keyboard::PhysicalKey, window::Window};
+use iced_winit::winit::{application::ApplicationHandler, dpi::{PhysicalSize, Size}, event::{KeyEvent, WindowEvent}, event_loop::{ActiveEventLoop, EventLoop}, keyboard::PhysicalKey, window::Window};
 
-use wgpu::*;
+use iced_wgpu::wgpu::*;
 
 use crate::render::*;
 
