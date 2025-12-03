@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use egui_winit::winit;
+use egui_winit::{winit, EventResponse};
 
 #[cfg(target_arch = "wasm32")]
 use winit::event_loop::{self};
@@ -44,7 +44,7 @@ impl ApplicationHandler<State> for App {
                 .with_inner_size(
                     Size::Physical(
                         PhysicalSize { 
-                            width: 1200, 
+                            width: 1800, 
                             height: 1200 
                         }
                     )
@@ -115,6 +115,18 @@ impl ApplicationHandler<State> for App {
             Some(canvas) => canvas,
             None => return
         };
+
+        let consumed = state.egui_state.on_window_event(&state.window, &event);
+        
+        if consumed.consumed {
+            if matches!(event, WindowEvent::Resized(_)) {
+
+            }
+            else if !matches!(event, WindowEvent::RedrawRequested) {
+                state.window.request_redraw();
+                return;
+            }
+        }
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),

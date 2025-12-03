@@ -1,5 +1,6 @@
 use std::{sync::Arc};
 
+use egui::{Align2, Color32, Margin, ViewportId};
 use egui_winit::winit;
 use egui_wgpu::wgpu;
 
@@ -43,7 +44,11 @@ pub struct State {
     mouse_pos: (f64, f64),
     mouse_delta: (f64, f64),
 
-    start: Instant
+    start: Instant,
+
+    //egui
+    pub egui_state: egui_winit::State,
+    pub egui_renderer: egui_wgpu::Renderer
 }
 
 impl State {
@@ -97,7 +102,31 @@ impl State {
 
         let brown_render_pipeline = make_pipeline_desc_from_shader(&device, &render_pipeline_layout, &brown_triangle_shader, config.format);
 
+        let egui_context = egui::Context::default();
+        let mut style = (*egui_context.style()).clone();
+        style.text_styles = [
+                (egui::TextStyle::Heading, egui::FontId::new(13.0, egui::FontFamily::Proportional)),
+                (egui::TextStyle::Body,    egui::FontId::new(10.0, egui::FontFamily::Proportional)),
+                (egui::TextStyle::Button,  egui::FontId::new(10.0, egui::FontFamily::Proportional)),
+                (egui::TextStyle::Monospace, egui::FontId::new(10.0, egui::FontFamily::Monospace)),
+            ]
+            .into(); 
+        style.compact_menu_style = true;
+        style.spacing.window_margin = Margin::same(8);
+        egui_context.set_style(style);
+
+        let egui_state = egui_winit::State::new(egui_context, ViewportId::ROOT, &window, None, None, None);        
+
         Ok(Self {
+            egui_state,
+            egui_renderer: egui_wgpu::Renderer::new(&device, config.format, 
+                egui_wgpu::RendererOptions { 
+                    msaa_samples: 1, 
+                    depth_stencil_format: None, 
+                    dithering: false, 
+                    predictable_texture_filtering: false
+                }
+            ),
             surface,
             window,
             device,
@@ -240,6 +269,45 @@ impl State {
             label: Some("Render Encoder")
         });
 
+        let raw_input = self.egui_state.take_egui_input(&self.window);
+        let full_output = self.egui_state.egui_ctx().run(raw_input, |ctx| {
+            let frame = egui::Frame {
+                inner_margin: egui::Margin::same(8),
+                corner_radius: egui::CornerRadius::same(4),
+                fill: egui::Color32::from_rgb(40, 40, 40),
+                shadow: egui::epaint::Shadow::NONE, // <- no shadow
+                ..Default::default()
+            };
+
+            egui::Window::new("Settings").title_bar(false).resizable(false).anchor(Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -10.0)).frame(frame).show(ctx, |ui| {
+                ui.heading(egui::RichText::new("Bold Heading").strong());
+                ui.label("Normal text");
+            });
+        });
+
+        self.egui_state.handle_platform_output(&self.window, full_output.platform_output);
+        let tris = self.egui_state.egui_ctx().tessellate(full_output.shapes, self.window.scale_factor() as f32);
+
+        for (id, image_delta) in &full_output.textures_delta.set {
+            self.egui_renderer.update_texture(
+                &self.device,
+                &self.queue,
+                *id,
+                image_delta,
+            );
+        }
+
+        self.egui_renderer.update_buffers(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &tris,
+            &egui_wgpu::ScreenDescriptor {
+                size_in_pixels: [self.config.width, self.config.height],
+                pixels_per_point: self.window.scale_factor() as f32,
+            },
+        );
+
         {
             let mut render_pass = encoder.begin_render_pass(
                 &RenderPassDescriptor { 
@@ -274,6 +342,35 @@ impl State {
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.scene_bind_group, &[]);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+        }
+
+        { 
+            let mut egui_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Egui Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None
+                })],
+                ..Default::default()
+            }).forget_lifetime();
+
+            self.egui_renderer.render(
+                &mut egui_pass,
+                &tris, 
+                &egui_wgpu::ScreenDescriptor {
+                    size_in_pixels: [self.config.width, self.config.height],
+                    pixels_per_point: self.window.scale_factor() as f32,
+                },
+            );
+
+            for id in &full_output.textures_delta.free {
+                self.egui_renderer.free_texture(id);
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
