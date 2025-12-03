@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
-use iced_wgpu::wgpu::*;
+use egui_wgpu::wgpu;
+use wgpu::*;
 use nalgebra::*;
 
 

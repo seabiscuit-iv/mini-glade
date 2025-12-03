@@ -1,12 +1,15 @@
 use std::{sync::Arc};
 
+use egui_winit::winit;
+use egui_wgpu::wgpu;
+
 use instant::Instant;
 use nalgebra::{Matrix4, Vector2, Vector3, Vector4};
-use iced_winit::winit::{dpi::PhysicalPosition, event::MouseButton, event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
+use winit::{dpi::PhysicalPosition, event::MouseButton, event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
 #[cfg(target_arch = "wasm32")]
 use winit::event_loop::{self};
 
-use iced_wgpu::wgpu::{util::{BufferInitDescriptor, DeviceExt}, *};
+use wgpu::{util::{BufferInitDescriptor, DeviceExt}, *};
 
 use crate::camera::*;
 use crate::shader_structs::*;
@@ -256,6 +259,7 @@ impl State {
                                 ), 
                                 store: StoreOp::Store
                             },
+                            depth_slice: None
                         }
                     )], 
                     depth_stencil_attachment: None, 

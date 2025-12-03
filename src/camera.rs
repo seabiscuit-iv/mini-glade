@@ -1,5 +1,7 @@
 use std::f32::consts::PI;
 
+use egui_wgpu::wgpu;
+
 use nalgebra::*;
 
 pub struct CameraController  {
@@ -138,7 +140,7 @@ impl Camera {
     }
 }
 
-use iced_wgpu::wgpu::{
+use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     *,
 };

@@ -1,7 +1,9 @@
 use std::sync::Arc;
-use iced_winit::winit::window::Window;
-use iced_wgpu::wgpu;
-use iced_wgpu::wgpu::*;
+use egui_wgpu::wgpu;
+use egui_winit::winit;
+
+use winit::window::Window;
+use wgpu::*;
 use crate::render;
 use crate::shader_structs::Vertex;
 
@@ -15,12 +17,14 @@ pub fn make_pipeline_desc_from_shader(device: &Device, layout: &PipelineLayout, 
             layout: Some(layout), 
             vertex: VertexState { 
                 module: shader, 
-                entry_point: "vs_main", 
+                entry_point: Some("vs_main"), 
+                compilation_options: PipelineCompilationOptions::default(), 
                 buffers: &[vertex_buffer_layout] 
             }, 
             fragment: Some(FragmentState {
                 module: shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
+                compilation_options: PipelineCompilationOptions::default(), 
                 targets: &[Some(ColorTargetState { 
                     format: fmt, 
                     blend: Some(BlendState::REPLACE), 
@@ -42,7 +46,8 @@ pub fn make_pipeline_desc_from_shader(device: &Device, layout: &PipelineLayout, 
                 count: 1, 
                 mask: !0, 
                 alpha_to_coverage_enabled: false 
-            }, 
+            },
+            cache: None, 
         }
     )
 }
@@ -60,7 +65,7 @@ pub async fn configure_surface(window: Arc<Window>) -> anyhow::Result<(Surface<'
         };
 
     let instance = Instance::new(
-        instance_descriptor
+        &instance_descriptor
     );
 
     let window_ref = window.clone();
@@ -87,9 +92,11 @@ pub async fn configure_surface(window: Arc<Window>) -> anyhow::Result<(Surface<'
                     Limits::downlevel_defaults()
                 } else {
                     Limits::default()
-                }
-        },
-        None
+                },
+            memory_hints: Default::default(), 
+            trace: Trace::Off ,
+            experimental_features: ExperimentalFeatures::disabled()
+        }
     )
     .await?;
 

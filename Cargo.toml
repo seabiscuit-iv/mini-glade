@@ -9,17 +9,17 @@ strip = true
 [dependencies]
 anyhow = "1.0.100"
 bytemuck = "1.24.0"
+egui = "0.33.2"
+egui-wgpu = "0.33.2"
+egui-winit = "0.33.2"
 env_logger = "0.11.8"
 instant = "0.1.13"
 log = "0.4.28"
 nalgebra = "0.34.1"
 pollster = "0.4.0"
-iced_winit = "0.13.0"
-iced_wgpu = { version = "0.13.5", default-features = true }
-iced_widget = { version = "0.13.4", features = ["wgpu"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-iced_wgpu = { version = "0.12", features = ["webgl"] }
+wgpu = { version = "26.0.1", features = ["webgl"]}
 console_error_panic_hook = "0.1.6"
 console_log = "1.0"
 wasm-bindgen = "0.2"

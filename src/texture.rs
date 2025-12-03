@@ -1,11 +1,11 @@
-use iced_wgpu::wgpu::*;
-use iced_wgpu::wgpu;
+use egui_wgpu::wgpu;
+use wgpu::*;
 use anyhow::Result;
 use image::GenericImageView;
 
 pub struct Texture {
     #[allow(unused)]
-    pub texture: iced_wgpu::wgpu::Texture,
+    pub texture: wgpu::Texture,
     pub view: TextureView,
     pub sampler: Sampler
 }
@@ -39,14 +39,14 @@ impl Texture {
         );
 
         queue.write_texture(
-           ImageCopyTexture { 
+           TexelCopyTextureInfo { 
                 texture: &texture, 
                 mip_level: 0, 
                 origin: Origin3d::ZERO, 
                 aspect: TextureAspect::All 
             }, 
             &rgba,
-            ImageDataLayout { 
+            TexelCopyBufferLayout { 
                 offset: 0, 
                 bytes_per_row: Some(4 * dimensions.0), 
                 rows_per_image: Some(dimensions.1)

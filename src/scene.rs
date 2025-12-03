@@ -1,5 +1,6 @@
 use nalgebra::{Matrix3, Vector3};
-use iced_wgpu::wgpu::{util::*, *};
+use egui_wgpu::wgpu;
+use wgpu::{util::*, *};
 
 pub const OBJECT_MAX: u32 = 64;
 
